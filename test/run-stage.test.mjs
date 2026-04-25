@@ -165,6 +165,68 @@ test("runStage emits structured error log on throw", async () => {
   assert.equal(errorLines[0].obj.x, 1);
 });
 
+test("runStage reserved markers win over caller ctx (no shadowing)", async () => {
+  // Δ-A3-1 regression — if a caller passes { action, stage, durationMs,
+  // errorMessage } in ctx, the wrapper's reserved markers must still appear
+  // on the emitted log line. Spread-order is `{ ...ctx, action, stage, ... }`.
+  _resetPipelineForTests();
+  const logger = createMockLogger();
+  configurePipeline({ logger });
+
+  // Success path — caller tries to inject every reserved field
+  await runStage(
+    "test.shadow",
+    {
+      action: "malicious",
+      stage: "wrong",
+      durationMs: -1,
+      tenantId: "t-shadow",
+    },
+    async () => "ok",
+  );
+
+  assert.equal(logger.lines.length, 2);
+  // start
+  assert.equal(logger.lines[0].obj.action, "pipeline_stage_start");
+  assert.equal(logger.lines[0].obj.stage, "test.shadow");
+  assert.equal(logger.lines[0].obj.tenantId, "t-shadow");
+  // complete
+  assert.equal(logger.lines[1].obj.action, "pipeline_stage_complete");
+  assert.equal(logger.lines[1].obj.stage, "test.shadow");
+  assert.notEqual(logger.lines[1].obj.durationMs, -1);
+  assert.equal(typeof logger.lines[1].obj.durationMs, "number");
+  assert.equal(logger.lines[1].obj.tenantId, "t-shadow");
+
+  // Throw path — caller tries to inject errorMessage too
+  _resetPipelineForTests();
+  const logger2 = createMockLogger();
+  configurePipeline({ logger: logger2 });
+
+  await assert.rejects(
+    runStage(
+      "test.shadow.throw",
+      {
+        action: "malicious",
+        stage: "wrong",
+        durationMs: -1,
+        errorMessage: "fake",
+      },
+      async () => {
+        throw new Error("real");
+      },
+    ),
+    /real/,
+  );
+
+  const errLine = logger2.lines.find((l) => l.level === "error");
+  assert.ok(errLine, "expected an error-level log line");
+  assert.equal(errLine.obj.action, "pipeline_stage_error");
+  assert.equal(errLine.obj.stage, "test.shadow.throw");
+  assert.equal(errLine.obj.errorMessage, "real");
+  assert.notEqual(errLine.obj.durationMs, -1);
+  assert.equal(typeof errLine.obj.durationMs, "number");
+});
+
 test("runStage swallows Sentry SDK breakage (telemetry never breaks the stage)", async () => {
   _resetPipelineForTests();
   const brokenSentry = {

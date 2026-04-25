@@ -1,6 +1,6 @@
 {
   "name": "@rello-platform/pipeline",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pipeline-stage instrumentation wrapper for the Rello ecosystem — runStage() emits structured logs + Sentry breadcrumbs at every stage boundary. Consumers configure their own Sentry SDK and logger via configurePipeline().",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

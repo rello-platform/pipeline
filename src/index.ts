@@ -129,7 +129,7 @@ export async function runStage<T>(
     // Swallow Sentry SDK errors — telemetry breakage never breaks the stage
   }
   logger.info(
-    { action: "pipeline_stage_start", stage: name, ...ctx },
+    { ...ctx, action: "pipeline_stage_start", stage: name },
     `pipeline_stage_start ${name}`,
   );
 
@@ -148,7 +148,7 @@ export async function runStage<T>(
       // Swallow
     }
     logger.info(
-      { action: "pipeline_stage_complete", stage: name, durationMs, ...ctx },
+      { ...ctx, action: "pipeline_stage_complete", stage: name, durationMs },
       `pipeline_stage_complete ${name}`,
     );
 
@@ -167,11 +167,11 @@ export async function runStage<T>(
     }
     logger.error(
       {
+        ...ctx,
         action: "pipeline_stage_error",
         stage: name,
         durationMs,
         errorMessage,
-        ...ctx,
       },
       `pipeline_stage_error ${name}`,
     );
