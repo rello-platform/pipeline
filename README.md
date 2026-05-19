@@ -70,6 +70,30 @@ const hashedLeadId = createHash("sha256").update(leadId).digest("hex").slice(0, 
 
 Why caller-side: the wrapper has no opinion on which fields are sensitive in any given call. Forcing a hash sanitizer inside the wrapper would either over-redact (breaking debugging) or under-redact (leaking IDs). Caller knows the schema; caller hashes.
 
+### EventStore sink (v0.2.0+)
+
+For consumers who want every stage emission persisted to a queryable backing store (e.g., a Postgres `PipelineEvent` table), pass an `eventStore` in `configurePipeline`:
+
+```ts
+import { configurePipeline, type EventStoreLike, type PipelineEventRecord } from "@rello-platform/pipeline";
+
+const myEventStore: EventStoreLike = {
+  writeEvent(record: PipelineEventRecord): void {
+    // Caller-defined: write `record` to your backing store.
+    // Fire-and-forget: if your write is async, discard the promise.
+    // Telemetry breakage must never break the wrapped fn — catch + log internally.
+  },
+};
+
+configurePipeline({ sentry, logger, eventStore: myEventStore });
+```
+
+`runStage` will invoke `writeEvent` 1-2 times per wrapped stage:
+- ONE start emit at entry
+- ONE complete emit at success — OR ONE error emit at throw (not both)
+
+Each call is wrapped in a try/catch internally; eventStore errors are silently swallowed. Implement your own logging at the consumer if you want to surface write failures.
+
 ## Stage names
 
 Use a dotted-namespace lowercase form: `<phase>.<sub-stage>`. Examples:

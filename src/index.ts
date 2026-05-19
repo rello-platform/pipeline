@@ -40,9 +40,23 @@ export interface LoggerLike {
   error(obj: Record<string, unknown>, msg?: string): void;
 }
 
+export interface PipelineEventRecord {
+  occurredAt: Date;
+  action: "pipeline_stage_start" | "pipeline_stage_complete" | "pipeline_stage_error";
+  stage: string;
+  durationMs?: number;
+  errorMessage?: string;
+  ctx: Record<string, unknown>;
+}
+
+export interface EventStoreLike {
+  writeEvent(record: PipelineEventRecord): void;
+}
+
 export interface PipelineDeps {
   sentry?: SentryLike;
   logger?: LoggerLike;
+  eventStore?: EventStoreLike;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,10 +70,12 @@ export interface PipelineDeps {
 
 let _sentry: SentryLike | undefined;
 let _logger: LoggerLike | undefined;
+let _eventStore: EventStoreLike | undefined;
 
 export function configurePipeline(deps: PipelineDeps): void {
   _sentry = deps.sentry;
   _logger = deps.logger;
+  _eventStore = deps.eventStore;
 }
 
 /**
@@ -69,6 +85,7 @@ export function configurePipeline(deps: PipelineDeps): void {
 export function _resetPipelineForTests(): void {
   _sentry = undefined;
   _logger = undefined;
+  _eventStore = undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +145,16 @@ export async function runStage<T>(
   } catch {
     // Swallow Sentry SDK errors — telemetry breakage never breaks the stage
   }
+  try {
+    _eventStore?.writeEvent({
+      occurredAt: new Date(start),
+      action: "pipeline_stage_start",
+      stage: name,
+      ctx,
+    });
+  } catch {
+    // Swallow eventStore errors — telemetry breakage never breaks the stage
+  }
   logger.info(
     { ...ctx, action: "pipeline_stage_start", stage: name },
     `pipeline_stage_start ${name}`,
@@ -147,6 +174,17 @@ export async function runStage<T>(
     } catch {
       // Swallow
     }
+    try {
+      _eventStore?.writeEvent({
+        occurredAt: new Date(),
+        action: "pipeline_stage_complete",
+        stage: name,
+        durationMs,
+        ctx,
+      });
+    } catch {
+      // Swallow
+    }
     logger.info(
       { ...ctx, action: "pipeline_stage_complete", stage: name, durationMs },
       `pipeline_stage_complete ${name}`,
@@ -161,6 +199,18 @@ export async function runStage<T>(
       _sentry?.captureException(error, {
         tags: { stage: name },
         extra: { ...ctx, durationMs },
+      });
+    } catch {
+      // Swallow
+    }
+    try {
+      _eventStore?.writeEvent({
+        occurredAt: new Date(),
+        action: "pipeline_stage_error",
+        stage: name,
+        durationMs,
+        errorMessage,
+        ctx,
       });
     } catch {
       // Swallow

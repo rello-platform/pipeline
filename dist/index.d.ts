@@ -27,9 +27,21 @@ export interface LoggerLike {
     info(obj: Record<string, unknown>, msg?: string): void;
     error(obj: Record<string, unknown>, msg?: string): void;
 }
+export interface PipelineEventRecord {
+    occurredAt: Date;
+    action: "pipeline_stage_start" | "pipeline_stage_complete" | "pipeline_stage_error";
+    stage: string;
+    durationMs?: number;
+    errorMessage?: string;
+    ctx: Record<string, unknown>;
+}
+export interface EventStoreLike {
+    writeEvent(record: PipelineEventRecord): void;
+}
 export interface PipelineDeps {
     sentry?: SentryLike;
     logger?: LoggerLike;
+    eventStore?: EventStoreLike;
 }
 export declare function configurePipeline(deps: PipelineDeps): void;
 /**
