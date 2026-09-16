@@ -4,7 +4,7 @@
 // run-stage.test.mjs's "no runtime deps, minimal devDeps" stance.
 //
 // Tests run against the compiled dist/ output. The npm test script runs
-// `npm run build` first, then `node --test`.
+// `npm run compile` first, then `node --test`.
 
 import test from "node:test";
 import assert from "node:assert/strict";
